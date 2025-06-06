@@ -12,8 +12,6 @@ from constants.callback_data import LANG_SELECT_PREFIX, DIAGNOSTIC_SCORE_PREFIX,
 
 logger = logging.getLogger(__name__)
 
-# ACTION_DISCUSS_ANSWER is available in constants.callback_data if needed elsewhere
-
 def register_all_handlers(app: Application):
     """Registers all command, callback, and message handlers with the application."""
 

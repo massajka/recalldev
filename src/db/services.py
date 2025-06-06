@@ -100,15 +100,20 @@ def get_categories_for_language(session: Session, language_id: int) -> List[Cate
     return categories
 
 # --- User Services ---
+def create_user(session: Session, telegram_id: int, ui_language_code: str = "ru") -> User:
+
+    user = User(telegram_id=telegram_id, ui_language_code=ui_language_code)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    logger.info(f"Created user: {telegram_id}")
+
+    return user
+
 def get_or_create_user(session: Session, telegram_id: int, ui_language_code: str = "ru") -> User:
     user = session.exec(select(User).where(User.telegram_id == telegram_id)).first()
-    if not user:
-        user = User(telegram_id=telegram_id, ui_language_code=ui_language_code)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        logger.info(f"Created user: {telegram_id}")
-    return user
+
+    return create_user(session, telegram_id, ui_language_code) or user
 
 
 def set_user_active_language(session: Session, user_id: int, language_id: int) -> Optional[User]:

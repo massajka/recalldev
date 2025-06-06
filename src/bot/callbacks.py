@@ -1,7 +1,6 @@
 import logging
-import os
-import json
 import re
+import json
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from telegram.ext import ContextTypes
@@ -17,24 +16,15 @@ from constants.callback_data import (
     ACTION_DISCUSS_ANSWER,
 )
 
-
-# Импортируем escape_markdown если он определён ниже, иначе определяем тут
-try:
-    from .views import escape_markdown
-except ImportError:
-    def escape_markdown(text: str) -> str:
-        """Экранирует спецсимволы MarkdownV2 для Telegram."""
-        escape_chars = r'_*[]()~`>#+-=|{}.!'
-        return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
-
-
 from src.bot.state_machine import UserState, get_user_state, set_user_state
 
 from src.bot.flows.practice import handle_user_answer, send_current_practice_question, handle_next_question_callback
 from src.bot.flows.diagnostics import diagnostics_command, handle_diagnostic_score, send_current_diagnostic_question
 
+from src.utils import escape_markdown
 
 logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "handle_user_answer",
@@ -52,41 +42,22 @@ __all__ = [
     "generate_practice_plan",
 ]
 
-
-
 # --- Command Handlers ---
 
-
-async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Route incoming text messages based on user state."""
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.message.from_user.id
+
     with get_session() as session:
-        user = services.get_or_create_user(session, telegram_id=telegram_id)
-        state = get_user_state(session, telegram_id)
-        if state == UserState.PRACTICE.value or state == UserState.WAITING_FOR_ANSWER.value:
-            await update.message.reply_text(messages.MSG_THANKS_FOR_ANSWER_ANALYZING)
-            await handle_user_answer(update, context)
-        elif state == UserState.DIAGNOSTICS.value:
-            await update.message.reply_text(messages.MSG_DIAGNOSTICS_IN_PROGRESS)
-        elif state == UserState.LANG_SELECT.value:
-            await update.message.reply_text(messages.MSG_CHOOSE_LANGUAGE_FIRST)
-        else:
-            await update.message.reply_text(messages.MSG_UNKNOWN_STATE)
+        services.get_or_create_user(session, telegram_id=telegram_id)
+        langs = services.list_languages(session)
+        keyboard = [[InlineKeyboardButton(lang.name, callback_data=f"{LANG_SELECT_PREFIX}{lang.slug}")] for lang in langs]
+
+        await update.message.reply_text(messages.MSG_CHOOSE_LANGUAGE, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def practice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /practice command: starts or resumes practice flow for the user."""
     await send_current_practice_question(update, context)
-
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    telegram_id = update.message.from_user.id
-    print(telegram_id)
-    with get_session() as session:
-        user = services.get_or_create_user(session, telegram_id=telegram_id)
-        langs = services.list_languages(session)
-        keyboard = [[InlineKeyboardButton(lang.name, callback_data=f"{LANG_SELECT_PREFIX}{lang.slug}")] for lang in langs]
-        await update.message.reply_text("Выберите технологию:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,7 +75,6 @@ async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(messages.MSG_CHOOSE_LANGUAGE, reply_markup=reply_markup)
 
 
-
 async def handle_language_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -114,6 +84,18 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
         lang = services.get_language_by_slug(session, slug=language_slug)
         services.set_user_active_language(session, user_id=user.id, language_id=lang.id)
         await query.edit_message_text(f"Вы выбрали: {lang.name} \n\nЧтобы пройти диагностику, отправьте команду /diagnostics")
+
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Route incoming text messages based on user state."""
+    telegram_id = update.message.from_user.id
+    with get_session() as session:
+        user = services.get_or_create_user(session, telegram_id=telegram_id)
+        state = get_user_state(session, telegram_id)
+        if state == UserState.PRACTICE.value or state == UserState.WAITING_FOR_ANSWER.value:
+            await update.message.reply_text(messages.MSG_THANKS_FOR_ANSWER_ANALYZING)
+            await handle_user_answer(update, context)
+        else:
+            await update.message.reply_text(messages.MSG_UNKNOWN_STATE)
 
 
 async def edit_message(query, text):
@@ -161,7 +143,6 @@ async def send_info(update, message):
     else:
         logger.warning(f"Не удалось отправить сообщение: {message}")
 
-import re
 
 def extract_json_from_llm_response(text):
     """Удаляет markdown-блоки и возвращает только JSON-строку."""
@@ -169,6 +150,7 @@ def extract_json_from_llm_response(text):
     if match:
         return match.group(1).strip()
     return text.strip()
+
 
 async def _generate_and_save_practice_questions(context, session, user, user_progress):
     active_language = services.get_language_by_id(session, user.active_language_id)
