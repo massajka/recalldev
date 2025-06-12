@@ -13,7 +13,15 @@ async def get_current_diagnostic_question(context: ContextTypes.DEFAULT_TYPE) ->
         user = services.get_or_create_user(session, telegram_id=telegram_id)
         progress_id = context.user_data.get('active_progress_id')
         if not progress_id:
-            return FlowResult(FlowStatus.ERROR)
+            # Automatically start diagnostics to avoid sending an error message to the user
+            start_res = await start_diagnostics(context)
+            if start_res.status != FlowStatus.OK:
+                return start_res
+            progress_id = context.user_data.get('active_progress_id')
+            # After auto-start, refresh diagnostic question IDs and current index from context
+            question_ids = context.user_data.get('diagnostic_question_ids', [])
+            current_index = context.user_data.get('diagnostic_current_index', 0)
+
         user_progress = session.get(services.UserProgress, progress_id)
         question_ids = context.user_data.get('diagnostic_question_ids', [])
         current_index = context.user_data.get('diagnostic_current_index', 0)
@@ -67,7 +75,12 @@ async def start_diagnostics(context: ContextTypes.DEFAULT_TYPE) -> FlowResult:
         context.user_data['diagnostic_question_ids'] = [q.id for q in diagnostic_questions]
         context.user_data['diagnostic_scores_temp'] = {}
 
-        return FlowResult(FlowStatus.OK)
+        # Immediately return the first diagnostic question so the user sees only one message.
+        first_q = await get_current_diagnostic_question(context)
+        # Advance index so subsequent calls fetch the next question instead of repeating.
+        context.user_data['diagnostic_current_index'] += 1
+
+        return first_q
 
 async def process_diagnostic_score(context: ContextTypes.DEFAULT_TYPE, question_id: int, score: int) -> FlowResult:
     progress_id = context.user_data.get('active_progress_id')

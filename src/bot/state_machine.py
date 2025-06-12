@@ -2,6 +2,9 @@ from enum import Enum
 from sqlmodel import select, Session
 from src.db.models import User
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserState(Enum):
     LANG_SELECT = "lang_select"

@@ -16,6 +16,7 @@ def render(result: FlowResult):
         FlowStatus.NEXT_QUESTION: _render_question,
     }
     handler = dispatch.get(result.status, _render_error)
+
     return handler(result)
 
 

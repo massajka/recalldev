@@ -1,0 +1,7 @@
+pytest
+pytest-asyncio
+ruff
+black
+pytest-cov
+pytest-mock
+mutmut

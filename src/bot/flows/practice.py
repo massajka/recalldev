@@ -12,7 +12,10 @@ async def get_current_practice_question(context: ContextTypes.DEFAULT_TYPE) -> F
         user_progress = services.get_or_create_user_progress(session, user_id=user.id, language_id=user.active_language_id)
         current_item = services.get_current_learning_item(session, user_progress_id=user_progress.id)
         if not current_item or not current_item.question:
-            return FlowResult(FlowStatus.FINISHED)
+            # distinguish between "нет плана" и "план завершён"
+            if services.user_has_practice_plan(session, user_progress_id=user_progress.id):
+                return FlowResult(FlowStatus.FINISHED)
+            return FlowResult(FlowStatus.NO_PLAN)
 
         return FlowResult(FlowStatus.OK, {"text": current_item.question.text})
 

@@ -34,10 +34,6 @@ async def diagnostics_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     flow_result = await diagnostics_flow.start_diagnostics(context)
     text, markup = diagnostics_view.render(flow_result)
     await update.message.reply_text(text, reply_markup=markup)
-    if flow_result.status in (FlowStatus.OK, FlowStatus.NEXT_QUESTION):
-        q_res = await diagnostics_flow.get_current_diagnostic_question(context)
-        q_text, q_markup = diagnostics_view.render(q_res)
-        await update.message.reply_text(q_text, reply_markup=q_markup)
 
 async def handle_diagnostic_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
