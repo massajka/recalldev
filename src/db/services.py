@@ -1,3 +1,5 @@
+import datetime
+
 from sqlmodel import select, Session
 from src.db.db import get_session, engine # engine нужен для create_all в populate_initial_data
 from src.db.models import (
@@ -112,8 +114,10 @@ def create_user(session: Session, telegram_id: int, ui_language_code: str = "ru"
 
 def get_or_create_user(session: Session, telegram_id: int, ui_language_code: str = "ru") -> User:
     user = session.exec(select(User).where(User.telegram_id == telegram_id)).first()
+    if user:
+        return user
+    return create_user(session, telegram_id, ui_language_code)
 
-    return create_user(session, telegram_id, ui_language_code) or user
 
 
 def set_user_active_language(session: Session, user_id: int, language_id: int) -> Optional[User]:
@@ -163,8 +167,13 @@ def get_question_by_id(session: Session, question_id: int) -> Optional[Question]
     return session.get(Question, question_id)
 
 # --- UserProgress & UserLearningPlanItem Services ---
+def get_learning_plan_items(session: Session, user_progress_id: int) -> List[UserLearningPlanItem]:
+    return session.exec(
+        select(UserLearningPlanItem).where(UserLearningPlanItem.user_progress_id == user_progress_id)
+    ).all()
 
-def mark_diagnostics_complete(session: Session, user_progress_id: int):
+
+def mark_diagnostics_completed(session: Session, user_progress_id: int):
     progress = session.get(UserProgress, user_progress_id)
     if progress:
         progress.diagnostics_completed = True
@@ -186,19 +195,30 @@ def get_max_learning_plan_order_index(session: Session, user_progress_id: int) -
     ).first()
     return result if result is not None else -1
 
-def get_or_create_user_progress(session: Session, user_id: int, language_id: int) -> UserProgress:
+def create_new_user_progress(session, user_id, language_id):
+    """Создаёт новый прогресс пользователя для выбранной технологии."""
+    from src.db.models import UserProgress
+    user_progress = UserProgress(
+        user_id=user_id,
+        language_id=language_id,
+        diagnostic_scores_json=None,
+        diagnostics_completed=False
+    )
+    session.add(user_progress)
+    session.commit()
+    session.refresh(user_progress)
+    logger.info(f"Created UserProgress for user {user_id}, language {language_id}")
+
+    return user_progress
+
+def get_or_create_user_progress(session, user_id, language_id): 
     progress = session.exec(
         select(UserProgress)
         .where(UserProgress.user_id == user_id)
         .where(UserProgress.language_id == language_id)
     ).first()
-    if not progress:
-        progress = UserProgress(user_id=user_id, language_id=language_id)
-        session.add(progress)
-        session.commit()
-        session.refresh(progress)
-        logger.info(f"Created UserProgress for user {user_id}, language {language_id}")
-    return progress
+
+    return progress or create_new_user_progress(session, user_id, language_id)
 
 def add_question_to_learning_plan(session: Session, user_progress_id: int, question_id: int, order_index: int, status: str = "pending") -> UserLearningPlanItem:
     # Check if this question at this order_index already exists for this plan
@@ -288,6 +308,38 @@ def save_diagnostic_scores(session: Session, user_progress_id: int, scores: Dict
         session.refresh(progress)
         logger.info(f"Saved diagnostic scores for progress {user_progress_id}")
     return progress
+
+# --- UserDiagnosticAnswer Services ---
+def save_diagnostic_answer(session: Session, user_progress_id: int, question_id: int, score: int):
+    from src.db.models import UserDiagnosticAnswer
+    answer = session.exec(
+        select(UserDiagnosticAnswer)
+        .where(UserDiagnosticAnswer.user_progress_id == user_progress_id)
+        .where(UserDiagnosticAnswer.question_id == question_id)
+    ).first()
+    if answer:
+        answer.score = score
+        answer.answered_at = datetime.datetime.utcnow()
+        session.add(answer)
+        session.commit()
+        session.refresh(answer)
+    else:
+        answer = UserDiagnosticAnswer(
+            user_progress_id=user_progress_id,
+            question_id=question_id,
+            score=score
+        )
+        session.add(answer)
+        session.commit()
+        session.refresh(answer)
+    return answer
+
+def get_diagnostic_answers_for_progress(session: Session, user_progress_id: int):
+    from src.db.models import UserDiagnosticAnswer
+    return session.exec(
+        select(UserDiagnosticAnswer)
+        .where(UserDiagnosticAnswer.user_progress_id == user_progress_id)
+    ).all()
 
 # --- UserAnswer Services ---
 def save_user_answer(session: Session, user_id: int, question_id: int, learning_plan_item_id: int, 

@@ -48,7 +48,7 @@ if __name__ == '__main__':
     init_db()
     logger.info("Database initialized.")
 
-    if sys.argv[1] == "recreatedb":
+    if len(sys.argv) > 1 and sys.argv[1] == "recreatedb":
         import scripts.drop_db
         scripts.drop_db.drop_database()
         import scripts.create_db

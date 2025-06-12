@@ -78,3 +78,11 @@ class UserAnswer(SQLModel, table=True):
     user: Optional[User] = Relationship(back_populates="answers")
     question: Optional[Question] = Relationship()
     learning_plan_item: Optional[UserLearningPlanItem] = Relationship()
+
+
+class UserDiagnosticAnswer(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_progress_id: int = Field(foreign_key="userprogress.id")
+    question_id: int = Field(foreign_key="question.id")
+    score: int
+    answered_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)

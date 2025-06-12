@@ -1,10 +1,7 @@
 from enum import Enum
-import logging
-from typing import Optional
 from sqlmodel import select, Session
 from src.db.models import User
-
-logger = logging.getLogger(__name__)
+from typing import Optional
 
 class UserState(Enum):
     LANG_SELECT = "lang_select"
@@ -13,7 +10,6 @@ class UserState(Enum):
     WAITING_FOR_ANSWER = "waiting_for_answer"
     END = "end"
 
-# --- State Machine API ---
 def get_user_state(session: Session, telegram_id: int) -> str:
     user = session.exec(select(User).where(User.telegram_id == telegram_id)).first()
     return getattr(user, 'state', UserState.LANG_SELECT.value) if user else UserState.LANG_SELECT.value
@@ -24,7 +20,6 @@ def set_user_state(session: Session, telegram_id: int, state: str|UserState) -> 
         user.state = state.value if isinstance(state, UserState) else state
         session.add(user)
         session.commit()
-        logger.info(f"[STATE] User {telegram_id} set to {user.state}")
 
 # Вспомогательные
 
