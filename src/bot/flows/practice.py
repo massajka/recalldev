@@ -3,34 +3,36 @@ from telegram.ext import ContextTypes
 from src.db.db import get_session
 from src.db import services
 from constants import messages, prompts, callback_data
+from src.bot.flow_result import FlowResult, FlowStatus
 
-async def get_current_practice_question(context: ContextTypes.DEFAULT_TYPE):
+async def get_current_practice_question(context: ContextTypes.DEFAULT_TYPE) -> FlowResult:
     telegram_id = context.user_data.get('telegram_id')
     with get_session() as session:
         user = services.get_or_create_user(session, telegram_id=telegram_id)
         user_progress = services.get_or_create_user_progress(session, user_id=user.id, language_id=user.active_language_id)
         current_item = services.get_current_learning_item(session, user_progress_id=user_progress.id)
         if not current_item or not current_item.question:
-            return {"status": "finished"}
-        return {
-            "status": "ok",
-            "text": current_item.question.text
-        }
+            return FlowResult(FlowStatus.FINISHED)
 
-async def next_practice_question(context: ContextTypes.DEFAULT_TYPE):
+        return FlowResult(FlowStatus.OK, {"text": current_item.question.text})
+
+async def next_practice_question(context: ContextTypes.DEFAULT_TYPE) -> FlowResult:
     telegram_id = context.user_data.get('telegram_id')
+
     with get_session() as session:
         user = services.get_or_create_user(session, telegram_id=telegram_id)
         user_progress = services.get_or_create_user_progress(session, user_id=user.id, language_id=user.active_language_id)
         next_item = services.get_next_pending_learning_item(session, user_progress_id=user_progress.id)
         if next_item:
             services.set_current_learning_item(session, user_progress_id=user_progress.id, new_current_item_id=next_item.id)
-            return {"status": "ok"}
-        else:
-            return {"status": "finished"}
 
-async def process_user_practice_answer(context: ContextTypes.DEFAULT_TYPE, answer_text: str):
+            return FlowResult(FlowStatus.OK)
+
+        return FlowResult(FlowStatus.FINISHED)
+
+async def process_user_practice_answer(context: ContextTypes.DEFAULT_TYPE, answer_text: str) -> FlowResult:
     telegram_id = context.user_data.get('telegram_id')
+
     with get_session() as session:
         user = services.get_or_create_user(session, telegram_id=telegram_id)
         user_progress = services.get_or_create_user_progress(session, user_id=user.id, language_id=user.active_language_id)
@@ -54,14 +56,15 @@ async def process_user_practice_answer(context: ContextTypes.DEFAULT_TYPE, answe
         if next_item:
             keyboard = [[InlineKeyboardButton("Следующий вопрос", callback_data=callback_data.ACTION_NEXT_QUESTION)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            return {
-                "status": "continue",
+            return FlowResult(FlowStatus.CONTINUE, {"explanation": explanation, "reply_markup": reply_markup})
+
+        return FlowResult(
+            FlowStatus.FINISHED,
+            {
                 "explanation": explanation,
-                "reply_markup": reply_markup
-            }
-        else:
-            return {
-                "status": "finished",
-                "explanation": explanation,
-                "finish_messages": [messages.MSG_PRACTICE_PLAN_FINISHED, messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS]
-            }
+                "finish_messages": [
+                    messages.MSG_PRACTICE_PLAN_FINISHED,
+                    messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS,
+                ],
+            },
+        )

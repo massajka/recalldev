@@ -1,28 +1,33 @@
-# Bot Flow Description
+# Bot Flow Overview
 
-*   **Step 1: User starts the bot (`/start` or `/language`)**
-    *   The bot offers to select a programming language if an active language is not yet set.
-*   **Step 2: User selects a language**
-    *   The bot confirms the selection and announces the automatic start of diagnostics.
-    *   If diagnostics have already been completed, it informs the user.
-    *   It loads diagnostic questions, sets the first one as current, and sends it.
-*   **Step 3: Bot sends a diagnostic question, user answers (rates their knowledge on a scale of 1 to 5)**
-    *   The user clicks a button with their score.
-    *   The bot saves the score, confirms its receipt, and sends the next diagnostic question.
-    *   If there are no more diagnostic questions:
-        *   It saves all scores.
-        *   Automatically generates a personalized practice plan using an LLM based on diagnostic results.
-        *   Informs the user that the plan is ready and suggests using the `/practice` command.
-*   **Step 4: User requests practice (`/practice`)**
-    *   The bot checks if a language is selected and diagnostics are completed.
-    *   If there's an active practice question, it reminds the user.
-    *   It finds the next question from the generated plan and sends it.
-    *   If the plan is empty or all questions are completed, it sends an appropriate message.
-*   **Step 5: User sends a text answer to a practice question**
-    *   The bot receives the answer.
-    *   Sends the answer to an LLM for evaluation.
-    *   Saves the user's answer and the LLM's feedback.
-    *   Sends the LLM feedback to the user along with a "Next question" button.
-*   **Step 6: User clicks "Next question"**
-    *   The bot finds and sends the next question from the practice plan.
-    *   If there are no more questions in the plan, it informs the user that all practice questions have been completed.
+Below is a concise, step-by-step description of the user journey. For a visual sequence diagram see `docs/diagrams/bot_flow.png` (not included yet).
+
+| # | Trigger | Bot Action | User State |
+|---|---------|-----------|------------|
+| 1 | `/start` or `/language` | Offers to select a programming language if not yet set | `IDLE` → `IDLE` |
+| 2 | Language selection | Confirms selection, auto-starts diagnostics | `IDLE` → `DIAGNOSTICS` |
+| 3 | Diagnostic question | Sends diagnostic question, loads next one | `DIAGNOSTICS` |
+| 4 | Score button (1-5) | Saves score, sends next diagnostic question | `DIAGNOSTICS` |
+| 5 | After last diagnostic question | Saves all scores, generates practice plan via LLM, notifies user (`/practice`) | `DIAGNOSTICS` → `PRACTICE` |
+| 6 | `/practice` | Checks language and diagnostics, sends current practice question or reminds of active question | `PRACTICE` & sets `WAITING_FOR_ANSWER` |
+| 7 | User text answer | Sends answer to LLM, stores feedback, sends feedback + **Next question** button | `WAITING_FOR_ANSWER` |
+| 8 | "Next question" button | Sends next practice question or *finished* message | `PRACTICE` |
+
+### Notes
+* Diagnostics are mandatory once per language; user may rerun via `/diagnostics`.
+* Practice plan generation is fully automatic and idempotent.
+* All heavy LLM calls are guarded; if unavailable, fallback messages are shown.
+* Controllers (`callbacks.py`) never contain business logic — they orchestrate flows & views.
+
+---
+## Flow ↔️ State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> DIAGNOSTICS: language_selected
+    DIAGNOSTICS --> PRACTICE: diagnostics_completed
+    PRACTICE --> WAITING_FOR_ANSWER: question_sent
+    WAITING_FOR_ANSWER --> PRACTICE: answer_saved
+    PRACTICE --> IDLE: practice_finished
+```

@@ -6,11 +6,15 @@ from langchain.schema import HumanMessage
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+
 from src.db.db import get_session
 from src.db import services
 from src.bot.state_machine import get_user_state, UserState, set_user_state
 from src.bot.flows import diagnostics as diagnostics_flow
 from src.bot.flows import practice as practice_flow
+from src.bot.views import diagnostics as diagnostics_view, practice as practice_view
+from src.bot.flow_result import FlowStatus
+
 from constants import messages, prompts, callback_data
 
 logger = logging.getLogger(__name__)
@@ -21,30 +25,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with get_session() as session:
         services.get_or_create_user(session, telegram_id=telegram_id)
     await update.message.reply_text(messages.MSG_GREETING)
+
     await technology_command(update, context)
 
 async def diagnostics_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     context.user_data['telegram_id'] = telegram_id
-    result = await diagnostics_flow.start_diagnostics(context)
-    if result["status"] == "no_language":
-        await update.message.reply_text(messages.MSG_NO_ACTIVE_LANGUAGE_START)
-        return
-    if result["status"] == "no_questions":
-        await update.message.reply_text(messages.MSG_NO_DIAGNOSTIC_QUESTIONS_FOR_LANG)
-        return
-    await update.message.reply_text(messages.MSG_START_DIAGNOSTICS)
-    q_result = await diagnostics_flow.get_current_diagnostic_question(context)
-    if q_result["status"] == "ok":
-        await update.message.reply_text(q_result["text"], reply_markup=q_result["reply_markup"])
-    elif q_result["status"] == "no_questions":
-        await update.message.reply_text(messages.MSG_NO_DIAGNOSTIC_QUESTIONS_FOR_LANG)
-    elif q_result["status"] == "done":
-        await update.message.reply_text(messages.MSG_DIAGNOSTICS_SCORES_SAVED_COMPLETE)
+    flow_result = await diagnostics_flow.start_diagnostics(context)
+    text, markup = diagnostics_view.render(flow_result)
+    await update.message.reply_text(text, reply_markup=markup)
+    if flow_result.status in (FlowStatus.OK, FlowStatus.NEXT_QUESTION):
+        q_res = await diagnostics_flow.get_current_diagnostic_question(context)
+        q_text, q_markup = diagnostics_view.render(q_res)
+        await update.message.reply_text(q_text, reply_markup=q_markup)
 
 async def handle_diagnostic_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     try:
         data_payload = query.data.replace(callback_data.DIAGNOSTIC_SCORE_PREFIX, "")
         question_id_str, score_str = data_payload.split('_')
@@ -54,35 +52,29 @@ async def handle_diagnostic_score(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text(messages.MSG_DIAGNOSTIC_SCORE_PARSE_ERROR)
         return
     context.user_data['telegram_id'] = update.effective_user.id
-    result = await diagnostics_flow.process_diagnostic_score(context, question_id, score)
-    if result["status"] == "next_question":
-        q_result = await diagnostics_flow.get_current_diagnostic_question(context)
-        if q_result["status"] == "ok":
-            await query.edit_message_text(q_result["text"], reply_markup=q_result["reply_markup"])
-        elif q_result["status"] == "no_questions":
-            await query.edit_message_text(messages.MSG_NO_DIAGNOSTIC_QUESTIONS_FOR_LANG)
-        elif q_result["status"] == "done":
-            await query.edit_message_text(messages.MSG_DIAGNOSTICS_SCORES_SAVED_COMPLETE)
-    elif result["status"] == "completed":
+    flow_result = await diagnostics_flow.process_diagnostic_score(context, question_id, score)
+    if flow_result.status in (FlowStatus.NEXT_QUESTION, FlowStatus.OK):
+        q_res = await diagnostics_flow.get_current_diagnostic_question(context)
+        q_text, q_markup = diagnostics_view.render(q_res)
+        await query.edit_message_text(q_text, reply_markup=q_markup)
+    elif flow_result.status in (FlowStatus.COMPLETED, FlowStatus.DONE):
         await query.message.reply_text(messages.MSG_DIAGNOSTICS_SCORES_SAVED_COMPLETE)
-        # Генерируем практику
+        # Generate practice
         with get_session() as session:
             user = services.get_or_create_user(session, telegram_id=update.effective_user.id)
             user_progress = session.get(services.UserProgress, context.user_data.get('active_progress_id'))
             success, practice_result = await generate_practice_plan(context, session, user, user_progress)
             if success:
                 await query.message.reply_text(messages.MSG_NEW_PRACTICE_QUESTIONS_READY.format(count=practice_result))
-                # Здесь нужно вызвать функцию, которая покажет первый вопрос практики через practice_flow
+                # Show the first practice question
                 p_result = await practice_flow.get_current_practice_question(context)
-                if p_result["status"] == "ok":
-                    await query.message.reply_text(p_result["text"])
-                else:
-                    await query.message.reply_text(messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS)
+                p_text, p_markup = practice_view.render(p_result)
+                await query.message.reply_text(p_text, reply_markup=p_markup)
             elif practice_result == "NO_QUESTIONS":
                 await query.message.reply_text(messages.MSG_PRACTICE_PLAN_GENERATION_FAILED_NO_QUESTIONS)
             else:
                 await query.message.reply_text(messages.MSG_PRACTICE_PLAN_GENERATION_ERROR)
-    elif result["status"] == "no_active_question":
+    elif flow_result.status == FlowStatus.NO_ACTIVE_QUESTION:
         await query.edit_message_text(messages.MSG_NO_ACTIVE_DIAGNOSTIC_QUESTION)
 
 async def technology_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,27 +95,22 @@ async def practice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with get_session() as session:
         user = services.get_or_create_user(session, telegram_id=telegram_id)
         user_progress = services.get_or_create_user_progress(session, user_id=user.id, language_id=user.active_language_id)
-        has_plan = services.user_has_practice_plan(session, user_progress_id=user_progress.id)
-        if not has_plan:
+        if not services.user_has_practice_plan(session, user_progress_id=user_progress.id):
             await update.message.reply_text(messages.MSG_NO_PRACTICE_PLAN)
             return
-    q_result = await practice_flow.get_current_practice_question(context)
-    if q_result["status"] == "ok":
-        await update.message.reply_text(q_result["text"])
-    else:
-        await update.message.reply_text(messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS)
+    flow_res = await practice_flow.get_current_practice_question(context)
+    text, markup = practice_view.render(flow_res)
+    await update.message.reply_text(text, reply_markup=markup)
 
 async def handle_next_question_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data['telegram_id'] = query.from_user.id
-    result = await practice_flow.next_practice_question(context)
-    if result["status"] == "ok":
-        q_result = await practice_flow.get_current_practice_question(context)
-        if q_result["status"] == "ok":
-            await query.edit_message_text(q_result["text"])
-        else:
-            await query.edit_message_text(messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS)
+    flow_res = await practice_flow.next_practice_question(context)
+    if flow_res.status == FlowStatus.OK:
+        q_res = await practice_flow.get_current_practice_question(context)
+        q_text, _ = practice_view.render(q_res)
+        await query.edit_message_text(q_text)
     else:
         await query.edit_message_text(messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS)
 
@@ -146,19 +133,15 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if state in [UserState.PRACTICE.value, UserState.WAITING_FOR_ANSWER.value]:
             await update.message.reply_text(messages.MSG_THANKS_FOR_ANSWER_ANALYZING)
             answer_text = update.message.text
-            result = await practice_flow.process_user_practice_answer(context, answer_text)
-            if result["status"] == "continue":
-                await update.message.reply_text(result["explanation"], reply_markup=result["reply_markup"])
-            elif result["status"] == "finished":
-                await update.message.reply_text(result["explanation"])
-                for msg in result.get("finish_messages", []):
-                    await update.message.reply_text(msg)
+            p_res = await practice_flow.process_user_practice_answer(context, answer_text)
+            text, markup = practice_view.render(p_res)
+            await update.message.reply_text(text, reply_markup=markup)
         else:
             await update.message.reply_text(messages.MSG_UNKNOWN_STATE)
 
 
 async def edit_message(query, text):
-    # Универсальная отправка edit_message_text для callback_query
+    # Universal edit_message_text for callback_query
     if hasattr(query, "edit_message_text"):
         await query.edit_message_text(text)
     else:
@@ -166,12 +149,14 @@ async def edit_message(query, text):
 
 def get_or_create_user_by_update(session, update):
     telegram_id = None
+
     if hasattr(update, "message") and update.message:
         telegram_id = update.message.from_user.id
     elif hasattr(update, "callback_query") and update.callback_query:
         telegram_id = update.callback_query.from_user.id
     if telegram_id is None:
         raise ValueError("Не удалось определить telegram_id из update")
+
     return services.get_or_create_user(session, telegram_id=telegram_id)
 
 def extract_callback_data(query, prefix):
@@ -193,16 +178,16 @@ async def generate_practice_plan(context, session, user, user_progress):
         return False, "ERROR"
 
 async def send_info(update, message):
-    # Универсальная отправка reply_text для message/callback_query
+    # Universal reply_text for message/callback_query
     if hasattr(update, "message") and update.message:
         await update.message.reply_text(message)
     elif hasattr(update, "callback_query") and update.callback_query and update.callback_query.message:
         await update.callback_query.message.reply_text(message)
     else:
-        logger.warning(f"Не удалось отправить сообщение: {message}")
+        logger.warning(f"Failed to send message: {message}")
 
 def extract_json_from_llm_response(text):
-    """Удаляет markdown-блоки и возвращает только JSON-строку."""
+    """Remove markdown blocks and return only JSON string."""
     match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip()
@@ -210,21 +195,21 @@ def extract_json_from_llm_response(text):
 
 async def _generate_and_save_practice_questions(context, session, user, user_progress):
     active_language = services.get_language_by_id(session, user.active_language_id)
-    # Если результаты диагностики ещё не сохранены в JSON, вычислим их из ответов
+    # If the results of the diagnosis are not saved in JSON, calculate them from the answers
     if not user_progress.diagnostic_scores_json:
         answers = services.get_diagnostic_answers_for_progress(session, user_progress_id=user_progress.id)
         if not answers:
             logger.error("Cannot generate practice plan: no diagnostic answers found.")
             return 0
-        # Формируем словарь: category_id (str) -> последняя выставленная оценка
+        # Form a dictionary: category_id (str) -> last given score
         scores_tmp = {}
         for ans in answers:
-            # Нам нужен category_id вопроса. Получаем вопрос по id (кэшировать не обязательно)
+            # We need the category_id of the question. Get the question by id (no need to cache)
             q = services.get_question_by_id(session, ans.question_id)
             if not q:
                 continue
             scores_tmp[str(q.category_id)] = ans.score
-        # Сохраняем в JSON, чтобы не вычислять повторно
+        # Save in JSON, so we don't calculate again
         services.save_diagnostic_scores(session, user_progress_id=user_progress.id, scores=scores_tmp)
         diagnostic_scores = scores_tmp
     else:
@@ -267,7 +252,7 @@ async def _generate_and_save_practice_questions(context, session, user, user_pro
     first_new_item_id = None
     current_order_index = services.get_max_learning_plan_order_index(session, user_progress_id=user_progress.id) + 1
     for q in questions:
-        # Найти или создать вопрос в базе по тексту и категории
+        # Find or create question in the database by text and category
         category_name = q.get("category_name") or q.get("category")
         if not category_name:
             logger.error(f"No category name in LLM question: {q}")

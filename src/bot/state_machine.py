@@ -21,7 +21,7 @@ def set_user_state(session: Session, telegram_id: int, state: str|UserState) -> 
         session.add(user)
         session.commit()
 
-# Вспомогательные
+# Helper functions
 
 def is_in_state(session: Session, telegram_id: int, state: str|UserState) -> bool:
     current = get_user_state(session, telegram_id)

@@ -172,6 +172,15 @@ def get_learning_plan_items(session: Session, user_progress_id: int) -> List[Use
         select(UserLearningPlanItem).where(UserLearningPlanItem.user_progress_id == user_progress_id)
     ).all()
 
+# --- Practice plan helpers ---
+def user_has_practice_plan(session: Session, user_progress_id: int) -> bool:
+    """Returns True if there is at least one learning plan item for the given progress id."""
+    return (
+        session.exec(
+            select(UserLearningPlanItem.id).where(UserLearningPlanItem.user_progress_id == user_progress_id)
+        ).first()
+        is not None
+    )
 
 def mark_diagnostics_completed(session: Session, user_progress_id: int):
     progress = session.get(UserProgress, user_progress_id)
