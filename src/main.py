@@ -12,7 +12,8 @@ from telegram.ext import Application
 from src.db.db import init_db
 from src.db import services
 from langchain.chat_models import ChatOpenAI
-from src.bot.handlers import register_all_handlers
+from telegram_rest_mvc.registrar import register_routes
+from src.bot import urls as bot_urls
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -69,8 +70,8 @@ if __name__ == '__main__':
     # Store LLM instance in bot_data for access in handlers (единственный ключ)
     app.bot_data['chat_model'] = llm
 
-    # Register all handlers
-    register_all_handlers(app)
+    # Register telegram_rest_mvc routes
+    register_routes(app, bot_urls.router)
 
     logger.info("Bot is running...")
     app.run_polling()
