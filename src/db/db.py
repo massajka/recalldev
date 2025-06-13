@@ -1,26 +1,31 @@
 import logging
 import os
-from sqlmodel import SQLModel, create_engine, Session
 from contextlib import contextmanager
+
+from sqlmodel import Session, SQLModel, create_engine
+
 from .models import (
-    ProgrammingLanguage,
-    User,
     Category,
+    ProgrammingLanguage,
     Question,
-    UserProgress,
+    User,
+    UserAnswer,
     UserLearningPlanItem,
-    UserAnswer
+    UserProgress,
 )
+
 
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = "sqlite:///db.sqlite3"
 engine = create_engine(DATABASE_URL, echo=True)
 
+
 @contextmanager
 def get_session():
     with Session(engine) as session:
         yield session
+
 
 def init_db():
     """
@@ -34,8 +39,12 @@ def init_db():
         # that inherit from SQLModel and have `table=True` if they don't already exist.
         # It will not alter existing tables if their schema has changed (that requires migrations).
         SQLModel.metadata.create_all(engine)
-        logger.info("Database initialization complete (tables created or verified to exist).")
+        logger.info(
+            "Database initialization complete (tables created or verified to exist)."
+        )
     except Exception as e:
-        logger.exception("CRITICAL: Exception occurred during database table creation/verification in init_db.")
+        logger.exception(
+            "CRITICAL: Exception occurred during database table creation/verification in init_db."
+        )
         # Consider re-raising the exception if the application cannot run without a DB
         # raise

@@ -1,8 +1,21 @@
 """URL configuration for telegram_rest_mvc routes used by this bot."""
-from telegram_rest_mvc.router import Router, path, callback as cb_path, message as msg_path
+
+from constants.callback_data import (
+    ACTION_NEXT_QUESTION,
+    DIAGNOSTIC_SCORE_PREFIX,
+    LANG_SELECT_PREFIX,
+)
+from src.bot.views import diagnostics as diagnostics_view_module
+from src.bot.views import language as language_view_module
+from src.bot.views import message as message_view_module
+from src.bot.views import practice as practice_view_module
+from src.bot.views import technology as technology_view_module
+from telegram_rest_mvc.router import Router
+from telegram_rest_mvc.router import callback as cb_path
+from telegram_rest_mvc.router import message as msg_path
+from telegram_rest_mvc.router import path
 from telegram_rest_mvc.views import View
-from src.bot.views import diagnostics as diagnostics_view_module, practice as practice_view_module, language as language_view_module, technology as technology_view_module, message as message_view_module
-from constants.callback_data import DIAGNOSTIC_SCORE_PREFIX, LANG_SELECT_PREFIX, ACTION_NEXT_QUESTION
+
 
 router = Router()
 
@@ -21,9 +34,21 @@ class StartView(View):
 # Register routes
 path(router, "/ping", PingView.as_handler(), name="ping")
 path(router, "/start", StartView.as_handler(), name="start")
-path(router, "/diagnostics", diagnostics_view_module.DiagnosticsView.as_handler(), name="diagnostics")
-path(router, "/practice", practice_view_module.PracticeView.as_handler(), name="practice")
-path(router, "/technology", technology_view_module.TechnologyView.as_handler(), name="technology")
+path(
+    router,
+    "/diagnostics",
+    diagnostics_view_module.DiagnosticsView.as_handler(),
+    name="diagnostics",
+)
+path(
+    router, "/practice", practice_view_module.PracticeView.as_handler(), name="practice"
+)
+path(
+    router,
+    "/technology",
+    technology_view_module.TechnologyView.as_handler(),
+    name="technology",
+)
 
 # Text messages
 msg_path(router, message_view_module.UserTextMessageView.as_handler(), name="user_text")

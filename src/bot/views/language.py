@@ -1,10 +1,13 @@
 """View to handle language selection inline-button callback."""
-from telegram_rest_mvc.views import View
+
 from telegram import Update
 from telegram.ext import ContextTypes
+
 from constants import callback_data
-from src.db.db import get_session
 from src.db import services
+from src.db.db import get_session
+from telegram_rest_mvc.views import View
+
 
 class LanguageSelectionView(View):
     async def command(self):
@@ -14,7 +17,19 @@ class LanguageSelectionView(View):
         with get_session() as session:
             user = services.get_or_create_user(session, telegram_id=query.from_user.id)
             lang = services.get_language_by_id(session, int(language_slug))
-            services.set_user_active_language(session, user_id=user.id, language_id=lang.id)
-            await query.edit_message_text(
-                f"Вы выбрали: {lang.name}\n\nЧтобы пройти диагностику, отправьте команду /diagnostics"
+            services.set_user_active_language(
+                session, user_id=user.id, language_id=lang.id
             )
+            # Inform user of selection
+            await query.edit_message_text(
+                f"Вы выбрали: {lang.name}. Начинаем диагностику…"
+            )
+
+            # Ensure message attribute exists for downstream views
+            if not getattr(self.update, "message", None):
+                self.update.message = query.message
+
+            # Automatically start diagnostics flow
+            from src.bot.views.diagnostics import DiagnosticsView
+
+            await DiagnosticsView(self.update, self.context).command()

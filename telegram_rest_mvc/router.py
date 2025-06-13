@@ -16,7 +16,13 @@ class Router:
     def __init__(self):
         self._routes: List[Route] = []
 
-    def add(self, pattern: str, handler: Callable, name: Optional[str] = None, kind: str = "command"):
+    def add(
+        self,
+        pattern: str,
+        handler: Callable,
+        name: Optional[str] = None,
+        kind: str = "command",
+    ):
         self._routes.append(Route(pattern, handler, name, kind))
 
     def all_routes(self) -> List[Route]:
@@ -29,7 +35,9 @@ def path(router: "Router", pattern: str, handler: Callable, name: Optional[str] 
     return handler
 
 
-def callback(router: "Router", pattern: str, handler: Callable, name: Optional[str] = None):
+def callback(
+    router: "Router", pattern: str, handler: Callable, name: Optional[str] = None
+):
     """Register a CallbackQuery pattern route."""
     router.add(pattern, handler, name, kind="callback")
     return handler

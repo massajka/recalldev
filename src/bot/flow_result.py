@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional
+
 
 class FlowStatus(str, Enum):
     """Унифицированный список статусов для результатов flow-функций."""
