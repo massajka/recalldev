@@ -45,6 +45,10 @@ def init_db():
         # immediately see the freshly created tables in CI environments.
         with engine.connect() as conn:
             conn.commit()
+            # Ensure connection pool is cleared so that a fresh inspector uses a new
+            # connection after DDL commit (important in CI where tests open a new
+            # connection immediately).
+            engine.dispose()
         logger.info(
             "Database initialization complete (tables created or verified to exist)."
         )
