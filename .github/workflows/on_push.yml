@@ -35,14 +35,6 @@ jobs:
           mkdir -p test-reports
           pytest --cov=src --cov-report=xml --junitxml=test-reports/report.xml
 
-      - name: Upload test report
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Tests
-          path: test-reports/report.xml
-          reporter: java-junit
-
       - name: Get Cover 
         uses: orgoro/coverage@v3.2
         with:
