@@ -4,7 +4,6 @@ import types
 from types import SimpleNamespace
 
 import pytest
-from telegram import Update
 
 from constants import callback_data, messages
 from src.bot.flow_result import FlowResult, FlowStatus

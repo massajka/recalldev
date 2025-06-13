@@ -1,6 +1,7 @@
 """View handling plain user text answers during practice."""
 
 from constants import messages
+from src import utils
 from src.bot.flows import practice as practice_flow
 from src.bot.state_machine import UserState, get_user_state
 from src.bot.views.practice import render
@@ -17,14 +18,19 @@ class UserTextMessageView(View):
             user = services.get_or_create_user(session, telegram_id=telegram_id)
             state = get_user_state(session, telegram_id)
             if state in [UserState.PRACTICE.value, UserState.WAITING_FOR_ANSWER.value]:
-                await self.update.message.reply_text(
-                    messages.MSG_THANKS_FOR_ANSWER_ANALYZING
-                )
+                msg = utils.get_effective_message(self.update, self.context)
+                if msg:
+                    await msg.reply_text(messages.MSG_THANKS_FOR_ANSWER_ANALYZING)
+
                 answer_text = self.update.message.text
                 p_res = await practice_flow.process_user_practice_answer(
                     self.context, answer_text
                 )
                 text, markup = render(p_res)
-                await self.update.message.reply_text(text, reply_markup=markup)
+                msg = utils.get_effective_message(self.update, self.context)
+                if msg:
+                    await msg.reply_text(text, reply_markup=markup)
             else:
-                await self.update.message.reply_text(messages.MSG_UNKNOWN_STATE)
+                msg = utils.get_effective_message(self.update, self.context)
+                if msg:
+                    await msg.reply_text(messages.MSG_UNKNOWN_STATE)

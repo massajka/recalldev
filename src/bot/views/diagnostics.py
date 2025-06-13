@@ -4,6 +4,7 @@ from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from constants import callback_data, messages
+from src import utils
 from src.bot.flow_result import FlowResult, FlowStatus
 from src.bot.flows import diagnostics as diagnostics_flow
 from src.bot.flows import practice as practice_flow
@@ -59,7 +60,11 @@ class DiagnosticsView(View):
             return
 
         text, markup = render(flow_result)
-        await self.update.message.reply_text(text, reply_markup=markup)
+        msg = utils.get_effective_message(self.update, self.context)
+        if msg:
+            await msg.reply_text(text, reply_markup=markup)
+        else:
+            logger.error("No message object available to reply to in DiagnosticsView.")
 
 
 def _render_question(result: FlowResult):

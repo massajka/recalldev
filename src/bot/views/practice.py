@@ -6,6 +6,7 @@ from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from constants import messages, prompts
+from src import utils
 from src.bot.flow_result import FlowResult, FlowStatus
 from src.bot.flows import practice as practice_flow
 from src.db import services
@@ -114,7 +115,7 @@ async def _generate_and_save_practice_questions(context, session, user, user_pro
         plan_json_str = _extract_json_from_llm_response(llm_response)
         plan = json.loads(plan_json_str)
     except Exception as e:
-        logger.error(f"Failed to generate practice plan via LLM: {e}")
+        logger.exception(f"Failed to generate practice plan via LLM: {e}")
         return 0
 
     questions = plan if isinstance(plan, list) else plan.get("questions")
@@ -198,12 +199,16 @@ class PracticeView(View):
             if not services.user_has_practice_plan(
                 session, user_progress_id=user_progress.id
             ):
-                await self.update.message.reply_text(messages.MSG_NO_PRACTICE_PLAN)
+                msg = utils.get_effective_message(self.update, self.context)
+                if msg:
+                    await msg.reply_text(messages.MSG_NO_PRACTICE_PLAN)
                 return
 
         flow_res = await practice_flow.get_current_practice_question(self.context)
         text, markup = render(flow_res)
-        await self.update.message.reply_text(text, reply_markup=markup)
+        msg = src.utils.get_effective_message(self.update, self.context)
+        if msg:
+            await msg.reply_text(text, reply_markup=markup)
 
 
 class NextQuestionView(View):
@@ -224,7 +229,7 @@ class NextQuestionView(View):
         else:
             await query.edit_message_text(
                 messages.MSG_PRACTICE_PLAN_FINISHED_INSTRUCTIONS
-            )
+            )  # edit_message_text is correct for callback, no need to change
 
 
 # util moved from callbacks

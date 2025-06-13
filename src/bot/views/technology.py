@@ -3,6 +3,7 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from constants import callback_data, messages
+from src import utils
 from src.db import services
 from src.db.db import get_session
 from telegram_rest_mvc.views import View
@@ -15,9 +16,10 @@ class TechnologyView(View):
             user = services.get_or_create_user(session, telegram_id=telegram_id)
             technologies = services.list_languages(session)
             if not technologies:
-                await self.update.message.reply_text(
-                    messages.MSG_NO_AVAILABLE_TECHNOLOGIES
-                )
+                msg = utils.get_effective_message(self.update, self.context)
+                if msg:
+                    await msg.reply_text(messages.MSG_NO_AVAILABLE_TECHNOLOGIES)
+
                 return
             keyboard = [
                 [

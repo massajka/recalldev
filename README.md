@@ -33,11 +33,31 @@ RecallDev Bot is a Telegram bot designed to help users learn programming languag
     ```
 
 4.  **Set up environment variables:**
-    Create a `.env` file in the root of the project directory (`c:\Users\Admin\Projects\recalldev`) with the following content:
+    Create a `.env` file in the root of the project directory (`c:\Users\Admin\Projects\recalldev`) with the following variables. **Names must match exactly as shown below (double underscores for section nesting):**
+
+    | Variable Name              | Required | Description                                   |
+    |---------------------------|----------|-----------------------------------------------|
+    | TELEGRAM__TOKEN           | Yes      | Telegram Bot Token                            |
+    | LLM__OPENAI_API_KEY       | Yes      | OpenAI API Key for GPT                        |
+    | DATABASE__NAME            | No       | Database file name (default: db.sqlite3)      |
+    | DATABASE__ENGINE          | No       | Database engine (sqlite/postgresql, default: sqlite) |
+    | DATABASE__USER            | No       | DB user (for PostgreSQL)                      |
+    | DATABASE__PASSWORD        | No       | DB password (for PostgreSQL)                  |
+    | DATABASE__HOST            | No       | DB host (for PostgreSQL, default: localhost)  |
+    | DATABASE__PORT            | No       | DB port (for PostgreSQL, default: 5432)       |
+    | DEBUG                     | No       | Set to true for debug mode                    |
+
+    Example `.env`:
     ```env
-    TELEGRAM_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-    OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
-    # DATABASE_URL="sqlite:///./recall_dev.db" # Optional, default is recall_dev.db in project root
+    TELEGRAM__TOKEN=123456:ABC-Your-Telegram-Token
+    LLM__OPENAI_API_KEY=sk-Your-OpenAI-Key
+    # DATABASE__NAME=recall_dev.db
+    # DATABASE__ENGINE=sqlite
+    # DEBUG=true
+    ```
+    
+    - All variables are loaded via [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/), with double underscores (`__`) as section delimiters.
+    - Do **not** use single underscore or legacy names like `TELEGRAM_TOKEN` or `OPENAI_API_KEY` — they will be ignored by the config loader.
     ```
     Replace `YOUR_TELEGRAM_BOT_TOKEN` with your actual Telegram Bot token and `YOUR_OPENAI_API_KEY` with your OpenAI API key.
 

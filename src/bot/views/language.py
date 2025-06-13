@@ -25,9 +25,8 @@ class LanguageSelectionView(View):
                 f"Вы выбрали: {lang.name}. Начинаем диагностику…"
             )
 
-            # Ensure message attribute exists for downstream views
-            if not getattr(self.update, "message", None):
-                self.update.message = query.message
+            # Pass message to context.user_data for downstream views if needed
+            self.context.user_data["message"] = query.message
 
             # Automatically start diagnostics flow
             from src.bot.views.diagnostics import DiagnosticsView

@@ -10,17 +10,15 @@ if project_root not in sys.path:
 
 import logging
 
-from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 from telegram.ext import Application
 
 from src.bot import urls as bot_urls
 from src.db import services
 from src.db.db import init_db
+from src.settings import settings
 from telegram_rest_mvc.registrar import register_routes
 
-
-load_dotenv()
 
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -32,20 +30,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # --- LLM Initialization ---
-# ChatOpenAI будет автоматически искать OPENAI_API_KEY в переменных окружения, если он не передан явно.
-# load_dotenv() уже вызван в начале файла.
-llm_api_key = os.getenv("OPENAI_API_KEY")
-if not llm_api_key:
+if not settings.OPENAI_API_KEY:
     logger.warning(
-        "OPENAI_API_KEY not found in environment variables! LLM features will not work. Setting llm to None."
+        "OPENAI_API_KEY not found in settings! LLM features will not work. Setting llm to None."
     )
     llm = None
 else:
     try:
+        logger.info(f"OPENAI_API_KEY in settings: {settings.OPENAI_API_KEY!r}")
         llm = ChatOpenAI(
-            model_name="gpt-3.5-turbo", temperature=0.7, openai_api_key=llm_api_key
+            model_name="gpt-3.5-turbo",
+            temperature=0.7,
+            openai_api_key=settings.OPENAI_API_KEY,
         )
-        logger.info("ChatOpenAI initialized successfully.")
+        logger.info(f"ChatOpenAI initialized successfully: {llm}")
     except Exception as e:
         logger.exception("Failed to initialize ChatOpenAI. LLM features will not work.")
         llm = None
@@ -67,22 +65,24 @@ if __name__ == "__main__":
     services.try_populate_initial_data()
     logger.info("Initial data population attempt complete.")
 
-    TOKEN = os.getenv("TELEGRAM_TOKEN")
-    if not TOKEN:
-        logger.critical("TELEGRAM_TOKEN not found in environment variables!")
+    if not settings.TELEGRAM_TOKEN:
+        logger.critical("TELEGRAM_TOKEN not found in settings!")
         exit(1)
-    if llm is None:  # Проверяем, был ли LLM успешно инициализирован
+    if llm is None:
         logger.warning(
             "LLM (ChatOpenAI) is not available (likely missing OPENAI_API_KEY or initialization failed). LLM-dependent features will be disabled."
         )
 
-    app = Application.builder().token(TOKEN).build()
+    if sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    # Store LLM instance in bot_data for access in handlers (единственный ключ)
+    app = Application.builder().token(settings.TELEGRAM_TOKEN).build()
     app.bot_data["chat_model"] = llm
-
-    # Register telegram_rest_mvc routes
+    logger.info(f"[Startup] llm in bot_data: {app.bot_data.get('chat_model')!r}")
+    if llm is None:
+        logger.warning(
+            "[Startup] llm is None at runtime! LLM-dependent features will not work."
+        )
     register_routes(app, bot_urls.router)
-
     logger.info("Bot is running...")
     app.run_polling()
