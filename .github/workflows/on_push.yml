@@ -82,13 +82,13 @@ jobs:
           </svg>
           SVG
       - name: Commit badge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "gh-actions"
           git config --global user.email "actions@github.com"
           if ! git diff --quiet coverage-badge.svg; then
             git add coverage-badge.svg
-              git commit -m "chore: update coverage badge to ${{ steps.cov.outputs.pct }}%"
-              git push
-            fi
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            git commit -m "chore: update coverage badge to ${{ steps.cov.outputs.pct }}%"
+            git push
+          fi
