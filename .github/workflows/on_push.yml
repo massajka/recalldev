@@ -62,10 +62,6 @@ jobs:
       - name: Generate badge
         run: |
           pct=${{ steps.cov.outputs.pct }}
-          if   [ $pct -ge 90 ]; then color="brightgreen";
-          elif [ $pct -ge 75 ]; then color="yellowgreen";
-          elif [ $pct -ge 60 ]; then color="yellow";
-          else color="red"; fi
           cat > coverage-badge.svg <<SVG
           <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
             <linearGradient id="b" x2="0" y2="100%">
@@ -74,8 +70,8 @@ jobs:
             </linearGradient>
             <mask id="a"><rect width="120" height="20" rx="3" fill="#fff"/></mask>
             <g mask="url(#a)">
-              <rect width="65" height="20" fill="#555"/>
-              <rect x="65" width="55" height="20" fill="#${color}"/>
+              <rect width="65" height="20" fill="#ff69b4"/>
+              <rect x="65" width="55" height="20" fill="#4c1"/>
               <rect width="120" height="20" fill="url(#b)"/>
             </g>
             <g fill="#fff" text-anchor="middle"
