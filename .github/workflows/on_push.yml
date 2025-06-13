@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -41,7 +43,7 @@ jobs:
       - name: Get Cover 
         uses: orgoro/coverage@v3.2
         with:
-            coverageFile: test-reports/coverage.xml
+            coverageFile: test-reports/report.xml
             token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Extract coverage %
@@ -50,7 +52,7 @@ jobs:
           python - <<'PY'
           import xml.etree.ElementTree as ET, os, math, json
           cov = int(
-              float(ET.parse('coverage.xml').getroot().attrib['line-rate']) * 100 + 0.5
+              float(ET.parse('report.xml').getroot().attrib['line-rate']) * 100 + 0.5
           )
           print(f"::set-output name=pct::{cov}")
           PY
@@ -87,8 +89,11 @@ jobs:
         run: |
           git config --global user.name "gh-actions"
           git config --global user.email "actions@github.com"
-          if ! git diff --quiet coverage-badge.svg; then
-            git add coverage-badge.svg
-            git commit -m "chore: update coverage badge to ${{ steps.cov.outputs.pct }}%"
-            git push
+          git add coverage-badge.svg
+          # Commit only if index contains changes (new or updated badge)
+          if git diff --cached --quiet; then
+            echo "Badge unchanged — skip commit"
+            exit 0
           fi
+          git commit -m "chore: update coverage badge to ${{ steps.cov.outputs.pct }}%"
+          git push
