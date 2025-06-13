@@ -23,6 +23,9 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install dependencies
         run: |
@@ -40,3 +43,52 @@ jobs:
         with:
             coverageFile: test-reports/coverage.xml
             token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract coverage %
+        id: cov
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET, os, math, json
+          cov = int(
+              float(ET.parse('coverage.xml').getroot().attrib['line-rate']) * 100 + 0.5
+          )
+          print(f"::set-output name=pct::{cov}")
+          PY
+        
+      - name: Generate badge
+        run: |
+          pct=${{ steps.cov.outputs.pct }}
+          if   [ $pct -ge 90 ]; then color="brightgreen";
+          elif [ $pct -ge 75 ]; then color="yellowgreen";
+          elif [ $pct -ge 60 ]; then color="yellow";
+          else color="red"; fi
+          cat > coverage-badge.svg <<SVG
+          <svg xmlns="http://www.w3.org/2000/svg" width="120" height="20">
+            <linearGradient id="b" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <mask id="a"><rect width="120" height="20" rx="3" fill="#fff"/></mask>
+            <g mask="url(#a)">
+              <rect width="65" height="20" fill="#555"/>
+              <rect x="65" width="55" height="20" fill="#${color}"/>
+              <rect width="120" height="20" fill="url(#b)"/>
+            </g>
+            <g fill="#fff" text-anchor="middle"
+              font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+              <text x="33" y="15">coverage</text>
+              <text x="91" y="15">${pct}%</text>
+            </g>
+          </svg>
+          SVG
+      - name: Commit badge
+        run: |
+          git config --global user.name "gh-actions"
+          git config --global user.email "actions@github.com"
+          if ! git diff --quiet coverage-badge.svg; then
+            git add coverage-badge.svg
+              git commit -m "chore: update coverage badge to ${{ steps.cov.outputs.pct }}%"
+              git push
+            fi
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

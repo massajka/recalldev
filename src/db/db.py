@@ -39,6 +39,12 @@ def init_db():
         # that inherit from SQLModel and have `table=True` if they don't already exist.
         # It will not alter existing tables if their schema has changed (that requires migrations).
         SQLModel.metadata.create_all(engine)
+        # SQLite and some drivers may defer DDL changes until the transaction is
+        # committed. Open a temporary connection and commit explicitly so that
+        # any subsequent new connections (e.g., via sqlalchemy.inspect) can
+        # immediately see the freshly created tables in CI environments.
+        with engine.connect() as conn:
+            conn.commit()
         logger.info(
             "Database initialization complete (tables created or verified to exist)."
         )

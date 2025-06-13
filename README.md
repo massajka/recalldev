@@ -1,5 +1,7 @@
 # RecallDev Telegram Bot
 
+![coverage](./coverage-badge.svg)
+
 RecallDev Bot is a Telegram bot designed to help users learn programming languages. It features an automated flow: language selection triggers diagnostics, followed by AI-generated personalized practice plans. Users can then practice questions from their plan and receive AI-powered feedback on their answers.
 
 ## Prerequisites
