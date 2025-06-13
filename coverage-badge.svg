@@ -5,8 +5,8 @@
   </linearGradient>
   <mask id="a"><rect width="120" height="20" rx="3" fill="#fff"/></mask>
   <g mask="url(#a)">
-    <rect width="65" height="20" fill="#555"/>
-    <rect x="65" width="55" height="20" fill="#yellowgreen"/>
+    <rect width="65" height="20" fill="#ff69b4"/>
+    <rect x="65" width="55" height="20" fill="#4c1"/>
     <rect width="120" height="20" fill="url(#b)"/>
   </g>
   <g fill="#fff" text-anchor="middle"
