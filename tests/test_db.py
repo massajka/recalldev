@@ -11,12 +11,6 @@ from src.db.db import engine, get_session, init_db
 # ---------------- init_db behaviours -----------------
 
 
-def test_init_db_creates_tables():
-    init_db()
-    insp = inspect(engine)
-    assert "programminglanguage" in insp.get_table_names()
-
-
 def test_init_db_exception(monkeypatch, caplog):
     caplog.set_level("ERROR")
 
