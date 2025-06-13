@@ -38,12 +38,12 @@ jobs:
       - name: Run pytest
         run: |
           mkdir -p test-reports
-          pytest --cov=src --cov-report=xml --junitxml=test-reports/report.xml
+          pytest --cov=src --cov-report=xml:test-reports/coverage.xml --junitxml=test-reports/junit.xml
 
       - name: Get Cover 
         uses: orgoro/coverage@v3.2
         with:
-            coverageFile: test-reports/report.xml
+            coverageFile: test-reports/coverage.xml
             token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Extract coverage %
@@ -52,7 +52,7 @@ jobs:
           python - <<'PY'
           import xml.etree.ElementTree as ET, os, math, json
           cov = int(
-              float(ET.parse('report.xml').getroot().attrib['line-rate']) * 100 + 0.5
+              float(ET.parse('test-reports/coverage.xml').getroot().attrib['line-rate']) * 100 + 0.5
           )
           print(f"::set-output name=pct::{cov}")
           PY
